@@ -1,11 +1,12 @@
 """
-企业微信通知工具
+企业微信通知工具（修复版）
 用于将行情分析结果推送到企业微信群
 """
 
 import json
 import re
 import logging
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 from langchain.tools import tool, ToolRuntime
@@ -15,26 +16,63 @@ from cozeloop.decorator import observe
 
 import requests
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("tools.wechat_notification_tool")
 
 
-def get_webhook_key() -> str:
+def get_webhook_key() -> Optional[str]:
     """
-    从环境变量获取企业微信机器人 webhook key
+    获取企业微信机器人 webhook key
+    
+    优先级：
+    1. 从 coze_workload_identity 获取集成配置
+    2. 从环境变量 INTEGRATION_WECHAT_BOT 获取
+    3. 从环境变量 WECHAT_BOT_WEBHOOK_KEY 获取
     
     Returns:
-        webhook key
+        webhook key，如果未配置则返回 None
     """
+    # 方式 1: 从 coze_workload_identity 获取
     try:
         client = Client()
         wechat_bot_credential = client.get_integration_credential("integration-wechat-bot")
         webhook_key = json.loads(wechat_bot_credential)["webhook_key"]
         if "https" in webhook_key:
-            webhook_key = re.search(r"key=([a-zA-Z0-9-]+)", webhook_key).group(1)
+            match = re.search(r"key=([a-zA-Z0-9-]+)", webhook_key)
+            if match:
+                webhook_key = match.group(1)
+        logger.info(f"从 coze_workload_identity 获取 webhook key 成功")
         return webhook_key
     except Exception as e:
-        logger.error(f"获取企业微信 webhook key 失败: {e}")
-        raise ValueError("无法获取企业微信 webhook key，请检查配置")
+        logger.warning(f"从 coze_workload_identity 获取 webhook key 失败: {e}")
+    
+    # 方式 2: 从环境变量 INTEGRATION_WECHAT_BOT 获取
+    try:
+        webhook_url = os.getenv("INTEGRATION_WECHAT_BOT")
+        if webhook_url:
+            if "https" in webhook_url:
+                match = re.search(r"key=([a-zA-Z0-9-]+)", webhook_url)
+                if match:
+                    webhook_key = match.group(1)
+                    logger.info(f"从环境变量 INTEGRATION_WECHAT_BOT 获取 webhook key 成功")
+                    return webhook_key
+            else:
+                logger.info(f"从环境变量 INTEGRATION_WECHAT_BOT 获取 webhook key 成功（直接是 key）")
+                return webhook_url
+    except Exception as e:
+        logger.warning(f"从环境变量 INTEGRATION_WECHAT_BOT 获取 webhook key 失败: {e}")
+    
+    # 方式 3: 从环境变量 WECHAT_BOT_WEBHOOK_KEY 获取
+    try:
+        webhook_key = os.getenv("WECHAT_BOT_WEBHOOK_KEY")
+        if webhook_key:
+            logger.info(f"从环境变量 WECHAT_BOT_WEBHOOK_KEY 获取 webhook key 成功")
+            return webhook_key
+    except Exception as e:
+        logger.warning(f"从环境变量 WECHAT_BOT_WEBHOOK_KEY 获取 webhook key 失败: {e}")
+    
+    # 所有方式都失败
+    logger.error("无法获取企业微信 webhook key，请检查配置")
+    return None
 
 
 @tool
@@ -52,6 +90,14 @@ def send_to_wechat(message: str, message_type: str = "markdown", runtime: ToolRu
     try:
         # 获取 webhook key
         webhook_key = get_webhook_key()
+        
+        if not webhook_key:
+            error_msg = "⚠️ 企业微信通知未配置，消息未发送。请检查配置：\n"
+            error_msg += "  1. 在 Vibe Coding 平台添加企业微信机器人集成\n"
+            error_msg += "  2. 或设置环境变量 INTEGRATION_WECHAT_BOT 或 WECHAT_BOT_WEBHOOK_KEY"
+            logger.warning(error_msg)
+            return error_msg
+        
         send_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={webhook_key}"
         
         # 构造消息体
@@ -77,14 +123,14 @@ def send_to_wechat(message: str, message_type: str = "markdown", runtime: ToolRu
         
         if result.get("errcode", 0) != 0:
             logger.error(f"企业微信消息发送失败: {result}")
-            return f"发送失败: {result}"
+            return f"❌ 发送失败: {result}"
         
-        logger.info("企业微信消息发送成功")
-        return f"发送成功: {result}"
+        logger.info("✅ 企业微信消息发送成功")
+        return f"✅ 发送成功: {result}"
         
     except Exception as e:
-        logger.error(f"发送企业微信消息异常: {e}")
-        return f"发送异常: {str(e)}"
+        logger.error(f"❌ 发送企业微信消息异常: {e}")
+        return f"❌ 发送异常: {str(e)}"
 
 
 @tool
@@ -124,8 +170,8 @@ def send_market_analysis_to_wechat(analysis_result: str, runtime: ToolRuntime = 
         return result
         
     except Exception as e:
-        logger.error(f"发送市场分析到企业微信失败: {e}")
-        return f"发送失败: {str(e)}"
+        logger.error(f"❌ 发送市场分析到企业微信失败: {e}")
+        return f"❌ 发送失败: {str(e)}"
 
 
 @tool
@@ -172,8 +218,8 @@ def send_alert_to_wechat(alert_message: str, alert_level: str = "info", runtime:
         return result
         
     except Exception as e:
-        logger.error(f"发送告警到企业微信失败: {e}")
-        return f"发送失败: {str(e)}"
+        logger.error(f"❌ 发送告警到企业微信失败: {e}")
+        return f"❌ 发送失败: {str(e)}"
 
 
 @tool
@@ -208,20 +254,20 @@ def send_trading_signal_to_wechat(
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # 根据信号类型设置图标和颜色
-        signal_config = {
-            "买入": {"icon": "🟢", "emoji": "📈"},
-            "卖出": {"icon": "🔴", "emoji": "📉"},
-            "观望": {"icon": "⚪", "emoji": "⏸️"}
+        signal_icons = {
+            "买入": "🟢",
+            "卖出": "🔴",
+            "观望": "🟡"
         }
-        config = signal_config.get(signal_type, {"icon": "⚪", "emoji": "⏸️"})
+        icon = signal_icons.get(signal_type, "📊")
         
         # 构造交易信号消息
-        message = f"""## {config['icon']} 螺纹钢期货交易信号
+        message = f"""## {icon} 螺纹钢期货交易信号
 
 **时间**: {current_time}
 
 ### 信号概要
-- **信号类型**: {signal_type} {config['emoji']}
+- **信号类型**: {signal_type} {icon}
 - **当前价格**: {price}
 - **信号强度**: {signal_strength}
 
@@ -249,8 +295,8 @@ def send_trading_signal_to_wechat(
         return result
         
     except Exception as e:
-        logger.error(f"发送交易信号到企业微信失败: {e}")
-        return f"发送失败: {str(e)}"
+        logger.error(f"❌ 发送交易信号到企业微信失败: {e}")
+        return f"❌ 发送失败: {str(e)}"
 
 
 @tool
@@ -265,7 +311,7 @@ def send_daily_report_to_wechat(
     runtime: ToolRuntime = None
 ) -> str:
     """
-    发送每日行情报告到企业微信
+    发送每日行情汇总报告到企业微信
     
     Args:
         date: 日期
@@ -285,25 +331,19 @@ def send_daily_report_to_wechat(
 
 **日期**: {date}
 
-### 今日行情
-| 指标 | 数值 |
-|------|------|
-| 开盘价 | {open_price} |
-| 最高价 | {high_price} |
-| 最低价 | {low_price} |
-| 收盘价 | {close_price} |
-| 涨跌幅 | {change_percent} |
+### 行情数据
+- **开盘价**: {open_price}
+- **最高价**: {high_price}
+- **最低价**: {low_price}
+- **收盘价**: {close_price}
+- **涨跌幅**: {change_percent}
 
-### 技术分析
+### 市场分析
 {analysis}
-
-### 明日展望
-请关注关键技术位的变化，及时调整交易策略。
 
 ---
 
-*报告生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
-*📊 数据仅供参考，实际交易以交易所为准*
+*数据来源：交易所官方*
 """
         
         # 发送消息
@@ -315,8 +355,8 @@ def send_daily_report_to_wechat(
         return result
         
     except Exception as e:
-        logger.error(f"发送每日报告到企业微信失败: {e}")
-        return f"发送失败: {str(e)}"
+        logger.error(f"❌ 发送每日报告到企业微信失败: {e}")
+        return f"❌ 发送失败: {str(e)}"
 
 
 @tool
@@ -331,9 +371,29 @@ def send_error_to_wechat(error_message: str, runtime: ToolRuntime = None) -> str
         发送结果
     """
     try:
-        return send_alert_to_wechat.invoke({
-            "alert_message": error_message,
-            "alert_level": "error"
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 构造错误消息
+        message = f"""## 🚨 系统错误通知
+
+**时间**: {current_time}
+
+**错误信息**:
+{error_message}
+
+请及时检查系统日志并处理！
+
+日志位置: /app/work/logs/bypass/app.log
+"""
+        
+        # 发送消息
+        result = send_to_wechat.invoke({
+            "message": message,
+            "message_type": "markdown"
         })
+        
+        return result
+        
     except Exception as e:
-        return f"发送错误消息失败: {str(e)}"
+        logger.error(f"❌ 发送错误通知到企业微信失败: {e}")
+        return f"❌ 发送失败: {str(e)}"

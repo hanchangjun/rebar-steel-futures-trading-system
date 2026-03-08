@@ -1,5 +1,5 @@
 """
-期货行情数据获取工具
+期货行情数据获取工具（修复版）
 用于获取螺纹钢期货的实时行情和历史数据
 """
 
@@ -11,8 +11,25 @@ from coze_coding_utils.runtime_ctx.context import new_context
 from coze_coding_dev_sdk import SearchClient
 
 
+def safe_json_parse(text: str, default: Any = None) -> Any:
+    """
+    安全地解析 JSON 字符串
+    
+    Args:
+        text: 要解析的文本
+        default: 解析失败时返回的默认值
+    
+    Returns:
+        解析后的对象或默认值
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return default if default is not None else {"error": "无法解析 JSON", "raw_text": text}
+
+
 @tool
-def get_futures_realtime_quotes(symbol: str = "螺纹钢", 
+def get_futures_realtime_quotes(symbol: str = "螺纹钢",
                                 contract: Optional[str] = None,
                                 runtime: ToolRuntime = None) -> str:
     """
@@ -38,7 +55,11 @@ def get_futures_realtime_quotes(symbol: str = "螺纹钢",
         response = client.web_search(query=query, count=5, need_summary=True)
         
         if not response.web_items:
-            return "未找到相关行情数据"
+            return json.dumps({
+                "status": "error",
+                "message": "未找到相关行情数据",
+                "query": query
+            }, ensure_ascii=False)
         
         # 提取关键信息
         results = []
@@ -56,6 +77,7 @@ def get_futures_realtime_quotes(symbol: str = "螺纹钢",
         price_info = extract_price_info(query, response.summary if response.summary else "")
         
         output = {
+            'status': 'success',
             'query': query,
             'summary': response.summary,
             'price_info': price_info,
@@ -66,7 +88,11 @@ def get_futures_realtime_quotes(symbol: str = "螺纹钢",
         return json.dumps(output, ensure_ascii=False, indent=2)
         
     except Exception as e:
-        return f"获取行情数据失败：{str(e)}"
+        return json.dumps({
+            "status": "error",
+            "message": f"获取行情数据失败：{str(e)}",
+            "query": query
+        }, ensure_ascii=False)
 
 
 @tool
@@ -96,7 +122,11 @@ def get_futures_historical_data(symbol: str = "螺纹钢",
         response = client.web_search(query=query, count=5)
         
         if not response.web_items:
-            return f"未找到 {contract} 的历史数据"
+            return json.dumps({
+                "status": "error",
+                "message": f"未找到 {contract} 的历史数据",
+                "query": query
+            }, ensure_ascii=False)
         
         results = []
         for item in response.web_items[:3]:
@@ -109,6 +139,7 @@ def get_futures_historical_data(symbol: str = "螺纹钢",
             results.append(result)
         
         output = {
+            'status': 'success',
             'symbol': symbol,
             'contract': contract,
             'period': period,
@@ -120,11 +151,15 @@ def get_futures_historical_data(symbol: str = "螺纹钢",
         return json.dumps(output, ensure_ascii=False, indent=2)
         
     except Exception as e:
-        return f"获取历史数据失败：{str(e)}"
+        return json.dumps({
+            "status": "error",
+            "message": f"获取历史数据失败：{str(e)}",
+            "query": query
+        }, ensure_ascii=False)
 
 
 @tool
-def get_futures_market_news(symbol: str = "螺纹钢", 
+def get_futures_market_news(symbol: str = "螺纹钢",
                            count: int = 5,
                            runtime: ToolRuntime = None) -> str:
     """
@@ -146,7 +181,11 @@ def get_futures_market_news(symbol: str = "螺纹钢",
         response = client.web_search(query=query, count=count, time_range="1d")
         
         if not response.web_items:
-            return "未找到相关新闻"
+            return json.dumps({
+                "status": "error",
+                "message": "未找到相关新闻",
+                "query": query
+            }, ensure_ascii=False)
         
         news_list = []
         for item in response.web_items:
@@ -160,6 +199,7 @@ def get_futures_market_news(symbol: str = "螺纹钢",
             news_list.append(news)
         
         output = {
+            'status': 'success',
             'symbol': symbol,
             'news_count': len(news_list),
             'news': news_list
@@ -168,7 +208,11 @@ def get_futures_market_news(symbol: str = "螺纹钢",
         return json.dumps(output, ensure_ascii=False, indent=2)
         
     except Exception as e:
-        return f"获取市场新闻失败：{str(e)}"
+        return json.dumps({
+            "status": "error",
+            "message": f"获取市场新闻失败：{str(e)}",
+            "query": query
+        }, ensure_ascii=False)
 
 
 @tool
@@ -192,7 +236,11 @@ def get_futures_analysis_report(symbol: str = "螺纹钢",
         response = client.web_search(query=query, count=5, need_summary=True)
         
         if not response.web_items:
-            return "未找到相关分析报告"
+            return json.dumps({
+                "status": "error",
+                "message": "未找到相关分析报告",
+                "query": query
+            }, ensure_ascii=False)
         
         reports = []
         for item in response.web_items:
@@ -206,6 +254,7 @@ def get_futures_analysis_report(symbol: str = "螺纹钢",
             reports.append(report)
         
         output = {
+            'status': 'success',
             'symbol': symbol,
             'report_count': len(reports),
             'summary': response.summary,
@@ -215,7 +264,11 @@ def get_futures_analysis_report(symbol: str = "螺纹钢",
         return json.dumps(output, ensure_ascii=False, indent=2)
         
     except Exception as e:
-        return f"获取分析报告失败：{str(e)}"
+        return json.dumps({
+            "status": "error",
+            "message": f"获取分析报告失败：{str(e)}",
+            "query": query
+        }, ensure_ascii=False)
 
 
 def extract_price_info(query: str, summary: str) -> Dict[str, Any]:
@@ -279,24 +332,45 @@ def get_comprehensive_market_info(symbol: str = "螺纹钢",
     """
     try:
         # 获取实时行情
-        quotes = get_futures_realtime_quotes.invoke({'symbol': symbol, 'contract': contract, 'runtime': runtime})
-        
-        # 获取市场新闻
-        news = get_futures_market_news.invoke({'symbol': symbol, 'count': 3, 'runtime': runtime})
-        
-        # 获取分析报告
-        analysis = get_futures_analysis_report.invoke({'symbol': symbol, 'runtime': runtime})
-        
-        output = {
+        quotes_result = get_futures_realtime_quotes.invoke({
             'symbol': symbol,
             'contract': contract,
-            'quotes': json.loads(quotes),
-            'news': json.loads(news),
-            'analysis': json.loads(analysis),
-            'timestamp': '实时更新'
+            'runtime': runtime
+        })
+        quotes = safe_json_parse(quotes_result, {"status": "error", "message": "无法获取行情数据"})
+        
+        # 获取市场新闻
+        news_result = get_futures_market_news.invoke({
+            'symbol': symbol,
+            'count': 3,
+            'runtime': runtime
+        })
+        news = safe_json_parse(news_result, {"status": "error", "message": "无法获取新闻"})
+        
+        # 获取分析报告
+        analysis_result = get_futures_analysis_report.invoke({
+            'symbol': symbol,
+            'runtime': runtime
+        })
+        analysis = safe_json_parse(analysis_result, {"status": "error", "message": "无法获取分析报告"})
+        
+        output = {
+            'status': 'success',
+            'symbol': symbol,
+            'contract': contract,
+            'quotes': quotes,
+            'news': news,
+            'analysis': analysis,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'note': '以上数据来源于网络搜索，实际交易请以交易所官方数据为准'
         }
         
         return json.dumps(output, ensure_ascii=False, indent=2)
         
     except Exception as e:
-        return f"获取综合市场信息失败：{str(e)}"
+        return json.dumps({
+            "status": "error",
+            "message": f"获取综合市场信息失败：{str(e)}",
+            "symbol": symbol,
+            "contract": contract
+        }, ensure_ascii=False)
