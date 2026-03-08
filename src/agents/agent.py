@@ -31,6 +31,14 @@ from tools.technical_indicators import (
     analyze_volume,
     calculate_all_indicators
 )
+from tools.wechat_notification_tool import (
+    send_to_wechat,
+    send_market_analysis_to_wechat,
+    send_alert_to_wechat,
+    send_trading_signal_to_wechat,
+    send_daily_report_to_wechat,
+    send_error_to_wechat
+)
 
 LLM_CONFIG = "config/agent_llm_config.json"
 
@@ -103,7 +111,15 @@ def build_agent(ctx=None):
         calculate_kdj,
         calculate_bollinger_bands,
         analyze_volume,
-        calculate_all_indicators
+        calculate_all_indicators,
+        
+        # 企业微信通知工具
+        send_to_wechat,
+        send_market_analysis_to_wechat,
+        send_alert_to_wechat,
+        send_trading_signal_to_wechat,
+        send_daily_report_to_wechat,
+        send_error_to_wechat
     ]
     
     # 创建 Agent
