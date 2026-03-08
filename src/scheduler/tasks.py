@@ -12,8 +12,9 @@ from agents.agent import build_agent
 from scheduler.task_scheduler import get_scheduler
 from coze_coding_utils.runtime_ctx.context import new_context, Context
 from langchain_core.messages import HumanMessage
+from cozeloop.decorator import observe
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name())
 
 # 加载定时任务配置
 def load_scheduler_config():
