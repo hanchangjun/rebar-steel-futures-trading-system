@@ -1,0 +1,75 @@
+{
+  "scheduler": {
+    "enabled": true,
+    "timezone": "Asia/Shanghai"
+  },
+  "tasks": {
+    "daily_market_analysis": {
+      "enabled": true,
+      "name": "每日收盘后市场分析报告",
+      "description": "每个工作日收盘后（15:30）发送螺纹钢期货市场分析报告",
+      "cron": {
+        "hour": 15,
+        "minute": 30,
+        "day_of_week": "mon-fri"
+      }
+    },
+    "morning_market_summary": {
+      "enabled": true,
+      "name": "每日开盘前市场摘要",
+      "description": "每个工作日开盘前（8:30）发送螺纹钢期货市场摘要",
+      "cron": {
+        "hour": 8,
+        "minute": 30,
+        "day_of_week": "mon-fri"
+      }
+    },
+    "monitor_trading_signals": {
+      "enabled": true,
+      "name": "交易信号监控",
+      "description": "交易时段（9:00-15:00）每30分钟监控一次交易信号",
+      "cron": [
+        {
+          "hour": 9,
+          "minute": 0,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 9,
+          "minute": 30,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 10,
+          "minute": 0,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 10,
+          "minute": 30,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 11,
+          "minute": 0,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 13,
+          "minute": 30,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 14,
+          "minute": 0,
+          "day_of_week": "mon-fri"
+        },
+        {
+          "hour": 14,
+          "minute": 30,
+          "day_of_week": "mon-fri"
+        }
+      ]
+    }
+  }
+}

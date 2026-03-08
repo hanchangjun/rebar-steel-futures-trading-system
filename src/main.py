@@ -236,8 +236,46 @@ class GraphService:
 service = GraphService()
 app = FastAPI()
 
+# 导入定时任务模块
+from scheduler.tasks import setup_scheduled_tasks
+from scheduler.api import register_scheduler_routes
+
 # OpenAI 兼容接口处理器
 openai_handler = OpenAIChatHandler(service)
+
+# 注册定时任务管理路由
+register_scheduler_routes(app)
+logger.info("定时任务管理 API 路由已注册")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时的初始化"""
+    logger.info("应用启动中...")
+    
+    # 初始化并启动定时任务
+    try:
+        setup_scheduled_tasks()
+        logger.info("定时任务已成功启动")
+    except Exception as e:
+        logger.error(f"定时任务启动失败: {e}", exc_info=True)
+        # 定时任务启动失败不影响应用正常启动
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时的清理"""
+    logger.info("应用关闭中...")
+    
+    # 关闭定时任务调度器
+    try:
+        from scheduler.task_scheduler import get_scheduler
+        scheduler = get_scheduler()
+        if scheduler.is_running():
+            scheduler.shutdown(wait=True)
+            logger.info("定时任务已关闭")
+    except Exception as e:
+        logger.error(f"定时任务关闭失败: {e}", exc_info=True)
 
 
 @app.post("/run")
